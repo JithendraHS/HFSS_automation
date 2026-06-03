@@ -101,12 +101,12 @@ Z_TOP_GND_TOP_MM   =  Z_TOP_SUB_TOP_MM  + CU_THICKNESS_MM  # 3.11912
 VIA_Z_BOT_MM       =  Z_BOT_GND_BOT_MM
 VIA_HEIGHT_MM      =  Z_TOP_GND_TOP_MM - Z_BOT_GND_BOT_MM  # full stack
 
-# --- Air box (0.5mm pad all sides) ---
+# --- Air box (side/Z padding; X faces align with wave ports) ---
 AIR_PAD_MM         = 0.5
-AIR_X_MM           = -AIR_PAD_MM
+AIR_X_MM           = 0.0
 AIR_Y_MM           = -AIR_PAD_MM
 AIR_Z_MM           =  Z_BOT_GND_BOT_MM - AIR_PAD_MM
-AIR_XSIZE_MM       =  SUB_LENGTH_MM + 2.0 * AIR_PAD_MM
+AIR_XSIZE_MM       =  SUB_LENGTH_MM
 AIR_YSIZE_MM       =  SUB_WIDTH_MM  + 2.0 * AIR_PAD_MM
 AIR_ZSIZE_MM       =  VIA_HEIGHT_MM + 2.0 * AIR_PAD_MM
 
@@ -411,6 +411,43 @@ for i in range(VIA_COUNT):
     via_objects.append(name_l)
     via_objects.append(name_r)
 
+oEditor.Subtract(
+    [
+        "NAME:Selections",
+        "Blank Parts:=", "Substrate_Lower,Substrate_Upper",
+        "Tool Parts:=",  ",".join(via_objects),
+    ],
+    [
+        "NAME:SubtractParameters",
+        "KeepOriginals:=", True,
+    ]
+)
+
+ground_network_objects = ["Ground_Bot", "Ground_Top", "CPW_Gnd_Left", "CPW_Gnd_Right"] + via_objects
+oEditor.Unite(
+    [
+        "NAME:Selections",
+        "Selections:=", ",".join(ground_network_objects),
+    ],
+    [
+        "NAME:UniteParameters",
+        "KeepOriginals:=", False,
+    ]
+)
+oEditor.ChangeProperty(
+    [
+        "NAME:AllTabs",
+        [
+            "NAME:Geometry3DAttributeTab",
+            ["NAME:PropServers", "Ground_Bot"],
+            [
+                "NAME:ChangedProps",
+                ["NAME:Name", "Value:=", "Ground_Network"],
+            ],
+        ],
+    ]
+)
+
 # -- 7i. Air box --
 oEditor.CreateBox(
     [
@@ -448,18 +485,8 @@ oBoundary.AssignRadiation(
 
 oBoundary.AssignFiniteCond(
     [
-        "NAME:FiniteCond_Ground_Bot",
-        "Objects:=",        ["Ground_Bot"],
-        "UseMaterial:=",    True,
-        "Material:=",       "copper",
-        "Roughness:=",      CU_ROUGHNESS,
-        "InfGroundPlane:=", False,
-    ]
-)
-oBoundary.AssignFiniteCond(
-    [
-        "NAME:FiniteCond_Ground_Top",
-        "Objects:=",        ["Ground_Top"],
+        "NAME:FiniteCond_Ground_Network",
+        "Objects:=",        ["Ground_Network"],
         "UseMaterial:=",    True,
         "Material:=",       "copper",
         "Roughness:=",      CU_ROUGHNESS,
@@ -470,36 +497,6 @@ oBoundary.AssignFiniteCond(
     [
         "NAME:FiniteCond_Trace",
         "Objects:=",        ["Trace"],
-        "UseMaterial:=",    True,
-        "Material:=",       "copper",
-        "Roughness:=",      CU_ROUGHNESS,
-        "InfGroundPlane:=", False,
-    ]
-)
-oBoundary.AssignFiniteCond(
-    [
-        "NAME:FiniteCond_CPW_Gnd_L",
-        "Objects:=",        ["CPW_Gnd_Left"],
-        "UseMaterial:=",    True,
-        "Material:=",       "copper",
-        "Roughness:=",      CU_ROUGHNESS,
-        "InfGroundPlane:=", False,
-    ]
-)
-oBoundary.AssignFiniteCond(
-    [
-        "NAME:FiniteCond_CPW_Gnd_R",
-        "Objects:=",        ["CPW_Gnd_Right"],
-        "UseMaterial:=",    True,
-        "Material:=",       "copper",
-        "Roughness:=",      CU_ROUGHNESS,
-        "InfGroundPlane:=", False,
-    ]
-)
-oBoundary.AssignFiniteCond(
-    [
-        "NAME:FiniteCond_Vias",
-        "Objects:=",        via_objects,
         "UseMaterial:=",    True,
         "Material:=",       "copper",
         "Roughness:=",      CU_ROUGHNESS,
