@@ -38,6 +38,7 @@ SUB_WIDTH_MM       = 12.0      # Y extent of substrate
 SUB_LENGTH_MM      = 20.0      # X extent (= trace length)
 SUB_THICKNESS_MM   = 1.524     # 60 mil per dielectric layer
 CU_THICKNESS_MM    = 0.03556   # 1.4 mil copper
+CU_ROUGHNESS       = "0.15um"  # Groiss surface roughness
 
 # --- Signal trace -----------------------------------------------
 TRACE_WIDTH_MM     = 2.54      # *** PRIMARY: 100 mil -- change freely ***
@@ -159,15 +160,15 @@ oDefinitionManager = oProject.GetDefinitionManager()
 
 oDefinitionManager.AddMaterial(
     [
-        "NAME:Rogers_RO3003",
+        "NAME:FR4",
         "CoordinateSystemType:=",     "Cartesian",
         "BulkOrSurfaceType:=",        1,
         [
             "NAME:PhysicsTypes",
             "set:=", ["Electromagnetic"],
         ],
-        "permittivity:=",             "3.2",
-        "dielectric_loss_tangent:=",  "0.002",
+        "permittivity:=",             "4",
+        "dielectric_loss_tangent:=",  "0.02",
     ]
 )
 
@@ -214,7 +215,7 @@ oEditor.CreateBox(
         "Color:=",        "(143 175 143)",
         "Transparency:=", 0.4,
         "PartCoordinateSystem:=", "Global",
-        "MaterialValue:=", "\"Rogers_RO3003\"",
+        "MaterialValue:=", "\"FR4\"",
         "SolveInside:=",  True,
     ]
 )
@@ -325,7 +326,7 @@ oEditor.CreateBox(
         "Color:=",        "(143 175 143)",
         "Transparency:=", 0.4,
         "PartCoordinateSystem:=", "Global",
-        "MaterialValue:=", "\"Rogers_RO3003\"",
+        "MaterialValue:=", "\"FR4\"",
         "SolveInside:=",  True,
     ]
 )
@@ -445,23 +446,65 @@ oBoundary.AssignRadiation(
     ]
 )
 
-oBoundary.AssignPerfectE(
-    ["NAME:PerfE_Ground_Bot",  "Objects:=", ["Ground_Bot"],     "InfGroundPlane:=", False]
+oBoundary.AssignFiniteCond(
+    [
+        "NAME:FiniteCond_Ground_Bot",
+        "Objects:=",        ["Ground_Bot"],
+        "UseMaterial:=",    True,
+        "Material:=",       "copper",
+        "Roughness:=",      CU_ROUGHNESS,
+        "InfGroundPlane:=", False,
+    ]
 )
-oBoundary.AssignPerfectE(
-    ["NAME:PerfE_Ground_Top",  "Objects:=", ["Ground_Top"],     "InfGroundPlane:=", False]
+oBoundary.AssignFiniteCond(
+    [
+        "NAME:FiniteCond_Ground_Top",
+        "Objects:=",        ["Ground_Top"],
+        "UseMaterial:=",    True,
+        "Material:=",       "copper",
+        "Roughness:=",      CU_ROUGHNESS,
+        "InfGroundPlane:=", False,
+    ]
 )
-oBoundary.AssignPerfectE(
-    ["NAME:PerfE_Trace",       "Objects:=", ["Trace"],          "InfGroundPlane:=", False]
+oBoundary.AssignFiniteCond(
+    [
+        "NAME:FiniteCond_Trace",
+        "Objects:=",        ["Trace"],
+        "UseMaterial:=",    True,
+        "Material:=",       "copper",
+        "Roughness:=",      CU_ROUGHNESS,
+        "InfGroundPlane:=", False,
+    ]
 )
-oBoundary.AssignPerfectE(
-    ["NAME:PerfE_CPW_Gnd_L",   "Objects:=", ["CPW_Gnd_Left"],   "InfGroundPlane:=", False]
+oBoundary.AssignFiniteCond(
+    [
+        "NAME:FiniteCond_CPW_Gnd_L",
+        "Objects:=",        ["CPW_Gnd_Left"],
+        "UseMaterial:=",    True,
+        "Material:=",       "copper",
+        "Roughness:=",      CU_ROUGHNESS,
+        "InfGroundPlane:=", False,
+    ]
 )
-oBoundary.AssignPerfectE(
-    ["NAME:PerfE_CPW_Gnd_R",   "Objects:=", ["CPW_Gnd_Right"],  "InfGroundPlane:=", False]
+oBoundary.AssignFiniteCond(
+    [
+        "NAME:FiniteCond_CPW_Gnd_R",
+        "Objects:=",        ["CPW_Gnd_Right"],
+        "UseMaterial:=",    True,
+        "Material:=",       "copper",
+        "Roughness:=",      CU_ROUGHNESS,
+        "InfGroundPlane:=", False,
+    ]
 )
-oBoundary.AssignPerfectE(
-    ["NAME:PerfE_Vias",        "Objects:=", via_objects,        "InfGroundPlane:=", False]
+oBoundary.AssignFiniteCond(
+    [
+        "NAME:FiniteCond_Vias",
+        "Objects:=",        via_objects,
+        "UseMaterial:=",    True,
+        "Material:=",       "copper",
+        "Roughness:=",      CU_ROUGHNESS,
+        "InfGroundPlane:=", False,
+    ]
 )
 
 # ================================================================
@@ -683,7 +726,7 @@ oDesign.ChangeProperty(
 #   CPW_GAP     : 0.127mm to 0.508mm  step 0.127mm  (5->20 mil,   step 5 mil)
 #   VIA_DIAMETER: 0.254mm to 0.762mm  step 0.254mm  (10->30 mil,  step 10 mil)
 
-oOptimetrics.AddSetup(
+oOptimetrics.InsertSetup(
     "OptiParametric",
     [
         "NAME:ParamSweep1",
