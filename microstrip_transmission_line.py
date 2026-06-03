@@ -29,11 +29,16 @@ import ScriptEnv, math
 ScriptEnv.Initialize("Ansoft.ElectronicsDesktop")
 oDesktop.RestoreWindow()
 
+PROJECT_NAME = "CPW_Stripline_Project"
+DESIGN_NAME  = "CPW_Stripline"
+PROJECT_FILE = r"C:\Users\jithe\OneDrive\Documents\GitHub\HFSS_automation\CPW_Stripline_Project.aedt"
+
 # ================================================================
 # 2. PRIMARY PARAMETERS  -- edit here
 # ================================================================
 
 # --- Substrate / copper stack (all mm) --------------------------
+MIL_MM             = 0.0254
 SUB_WIDTH_MM       = 12.0      # Y extent of substrate
 SUB_LENGTH_MM      = 20.0      # X extent (= trace length)
 SUB_THICKNESS_MM   = 1.524     # 60 mil per dielectric layer
@@ -49,12 +54,14 @@ CPW_GAP_MM         = 0.254     # *** PRIMARY: 10 mil  -- change freely ***
 # --- Via placement ----------------------------------------------
 # VIA_OFFSET_MM : distance from the coplanar-ground INNER edge
 #                 (= from the gap/ground boundary) to the via CENTRE.
-# Set to half the via diameter so the via just touches the inner edge.
-VIA_DIAMETER_MM    = 0.508     # 20 mil
-VIA_OFFSET_MM      = VIA_DIAMETER_MM / 2.0  # *** slides with CPW_GAP ***
+# Set to half the pad diameter so the pad just touches the inner edge.
+VIA_DRILL_DIAMETER_MM = 13.0 * MIL_MM
+VIA_PAD_DIAMETER_MM   = 25.0 * MIL_MM
+VIA_OFFSET_MM         = VIA_PAD_DIAMETER_MM / 2.0  # *** slides with CPW_GAP ***
 
-VIA_PITCH_MM       = 1.016     # 40 mil, spacing along X
-VIA_RADIUS_MM      = VIA_DIAMETER_MM / 2.0
+VIA_PITCH_MM          = 1.016     # 40 mil, spacing along X
+VIA_DRILL_RADIUS_MM   = VIA_DRILL_DIAMETER_MM / 2.0
+VIA_PAD_RADIUS_MM     = VIA_PAD_DIAMETER_MM / 2.0
 
 # --- Solution ---------------------------------------------------
 FREQ_SOLVE         = "20GHz"
@@ -100,6 +107,11 @@ Z_TOP_GND_TOP_MM   =  Z_TOP_SUB_TOP_MM  + CU_THICKNESS_MM  # 3.11912
 
 VIA_Z_BOT_MM       =  Z_BOT_GND_BOT_MM
 VIA_HEIGHT_MM      =  Z_TOP_GND_TOP_MM - Z_BOT_GND_BOT_MM  # full stack
+VIA_PAD_LEVELS = [
+    ("Bottom", Z_BOT_GND_BOT_MM),
+    ("CPW",    Z_TRACE_BOT_MM),
+    ("Top",    Z_TOP_SUB_TOP_MM),
+]
 
 # --- Air box (side/Z padding; X faces align with wave ports) ---
 AIR_PAD_MM         = 0.5
@@ -136,6 +148,8 @@ print("  CPW gnd L end = " + mm(CPW_GND_L_END_MM))
 print("  CPW gnd R start="+ mm(CPW_GND_R_START_MM))
 print("  Via L Y       = " + mm(VIA_L_Y_MM))
 print("  Via R Y       = " + mm(VIA_R_Y_MM))
+print("  Via drill dia = " + mm(VIA_DRILL_DIAMETER_MM))
+print("  Via pad dia   = " + mm(VIA_PAD_DIAMETER_MM))
 print("  Via count/row = " + str(VIA_COUNT))
 print("  Via first X   = " + mm(VIA_FIRST_X_MM))
 print("=" * 52)
@@ -144,9 +158,8 @@ print("=" * 52)
 # 5. CREATE PROJECT AND HFSS DESIGN
 # ================================================================
 oProject = oDesktop.NewProject()
-oProject.Rename("CPW_Stripline_Project", True)
-oProject.InsertDesign("HFSS", "CPW_Stripline", "DrivenModal", "")
-oDesign = oProject.SetActiveDesign("CPW_Stripline")
+oProject.InsertDesign("HFSS", DESIGN_NAME, "DrivenModal", "")
+oDesign = oProject.SetActiveDesign(DESIGN_NAME)
 
 oEditor      = oDesign.SetActiveEditor("3D Modeler")
 oBoundary    = oDesign.GetModule("BoundarySetup")
@@ -357,6 +370,7 @@ oEditor.CreateBox(
 # Via centre Y slides with CPW_GAP: sits VIA_OFFSET from the
 # inner edge of the coplanar ground (touching the gap boundary).
 via_objects = []
+via_pad_objects = []
 for i in range(VIA_COUNT):
     x_mm = VIA_FIRST_X_MM + i * VIA_PITCH_MM
     x_str = mm(x_mm)
@@ -370,7 +384,7 @@ for i in range(VIA_COUNT):
             "XCenter:=", x_str,
             "YCenter:=", mm(VIA_L_Y_MM),
             "ZCenter:=", mm(VIA_Z_BOT_MM),
-            "Radius:=",  mm(VIA_RADIUS_MM),
+            "Radius:=",  mm(VIA_DRILL_RADIUS_MM),
             "Height:=",  mm(VIA_HEIGHT_MM),
             "WhichAxis:=", "Z",
             "NumSides:=",  0,
@@ -392,7 +406,7 @@ for i in range(VIA_COUNT):
             "XCenter:=", x_str,
             "YCenter:=", mm(VIA_R_Y_MM),
             "ZCenter:=", mm(VIA_Z_BOT_MM),
-            "Radius:=",  mm(VIA_RADIUS_MM),
+            "Radius:=",  mm(VIA_DRILL_RADIUS_MM),
             "Height:=",  mm(VIA_HEIGHT_MM),
             "WhichAxis:=", "Z",
             "NumSides:=",  0,
@@ -411,6 +425,57 @@ for i in range(VIA_COUNT):
     via_objects.append(name_l)
     via_objects.append(name_r)
 
+    for pad_layer, pad_z_mm in VIA_PAD_LEVELS:
+        pad_l = "ViaPad_L_" + str(i + 1) + "_" + pad_layer
+        pad_r = "ViaPad_R_" + str(i + 1) + "_" + pad_layer
+
+        oEditor.CreateCylinder(
+            [
+                "NAME:CylinderParameters",
+                "XCenter:=", x_str,
+                "YCenter:=", mm(VIA_L_Y_MM),
+                "ZCenter:=", mm(pad_z_mm),
+                "Radius:=",  mm(VIA_PAD_RADIUS_MM),
+                "Height:=",  mm(CU_THICKNESS_MM),
+                "WhichAxis:=", "Z",
+                "NumSides:=",  0,
+            ],
+            [
+                "NAME:Attributes",
+                "Name:=",         pad_l,
+                "Color:=",        "(255 128 65)",
+                "Transparency:=", 0,
+                "PartCoordinateSystem:=", "Global",
+                "MaterialValue:=", "\"copper\"",
+                "SolveInside:=",  False,
+            ]
+        )
+
+        oEditor.CreateCylinder(
+            [
+                "NAME:CylinderParameters",
+                "XCenter:=", x_str,
+                "YCenter:=", mm(VIA_R_Y_MM),
+                "ZCenter:=", mm(pad_z_mm),
+                "Radius:=",  mm(VIA_PAD_RADIUS_MM),
+                "Height:=",  mm(CU_THICKNESS_MM),
+                "WhichAxis:=", "Z",
+                "NumSides:=",  0,
+            ],
+            [
+                "NAME:Attributes",
+                "Name:=",         pad_r,
+                "Color:=",        "(255 128 65)",
+                "Transparency:=", 0,
+                "PartCoordinateSystem:=", "Global",
+                "MaterialValue:=", "\"copper\"",
+                "SolveInside:=",  False,
+            ]
+        )
+
+        via_pad_objects.append(pad_l)
+        via_pad_objects.append(pad_r)
+
 oEditor.Subtract(
     [
         "NAME:Selections",
@@ -423,7 +488,7 @@ oEditor.Subtract(
     ]
 )
 
-ground_network_objects = ["Ground_Bot", "Ground_Top", "CPW_Gnd_Left", "CPW_Gnd_Right"] + via_objects
+ground_network_objects = ["Ground_Bot", "Ground_Top", "CPW_Gnd_Left", "CPW_Gnd_Right"] + via_objects + via_pad_objects
 oEditor.Unite(
     [
         "NAME:Selections",
@@ -467,6 +532,18 @@ oEditor.CreateBox(
         "PartCoordinateSystem:=", "Global",
         "MaterialValue:=", "\"air\"",
         "SolveInside:=",  True,
+    ]
+)
+
+oEditor.Subtract(
+    [
+        "NAME:Selections",
+        "Blank Parts:=", "AirBox",
+        "Tool Parts:=",  "Ground_Network,Trace,Substrate_Lower,Substrate_Upper",
+    ],
+    [
+        "NAME:SubtractParameters",
+        "KeepOriginals:=", True,
     ]
 )
 
@@ -701,10 +778,16 @@ oDesign.ChangeProperty(
                     "Value:=",      mm(CPW_GAP_MM),
                 ],
                 [
-                    "NAME:VIA_DIAMETER",
+                    "NAME:VIA_DRILL_DIAMETER",
                     "PropType:=",   "VariableProp",
                     "UserDef:=",    True,
-                    "Value:=",      mm(VIA_DIAMETER_MM),
+                    "Value:=",      mm(VIA_DRILL_DIAMETER_MM),
+                ],
+                [
+                    "NAME:VIA_PAD_DIAMETER",
+                    "PropType:=",   "VariableProp",
+                    "UserDef:=",    True,
+                    "Value:=",      mm(VIA_PAD_DIAMETER_MM),
                 ],
             ],
         ],
@@ -721,7 +804,7 @@ oDesign.ChangeProperty(
 # Sweep ranges (edit as needed):
 #   TRACE_WIDTH : 1.524mm to 3.556mm  step 0.508mm  (60->140 mil, step 20 mil)
 #   CPW_GAP     : 0.127mm to 0.508mm  step 0.127mm  (5->20 mil,   step 5 mil)
-#   VIA_DIAMETER: 0.254mm to 0.762mm  step 0.254mm  (10->30 mil,  step 10 mil)
+#   VIA_DRILL_DIAMETER: 0.254mm to 0.762mm  step 0.254mm  (10->30 mil, step 10 mil)
 
 oOptimetrics.InsertSetup(
     "OptiParametric",
@@ -756,7 +839,7 @@ oOptimetrics.InsertSetup(
             ],
             [
                 "NAME:SweepDefinition",
-                "Variable:=",   "VIA_DIAMETER",
+                "Variable:=",   "VIA_DRILL_DIAMETER",
                 "Data:=",       "LIN 0.254mm 0.762mm 0.254mm",
                 "OffsetF1:=",   False,
                 "Synchronize:=", 0,
@@ -770,11 +853,11 @@ oOptimetrics.InsertSetup(
 # ================================================================
 # 13. SAVE
 # ================================================================
-oProject.Save()
+oProject.SaveAs(PROJECT_FILE, True)
 
 oDesktop.AddMessage(
-    "CPW_Stripline_Project",
-    "CPW_Stripline",
+    PROJECT_NAME,
+    DESIGN_NAME,
     0,
     "CPW Stripline created. " +
     "W=" + mm(TRACE_WIDTH_MM) +
